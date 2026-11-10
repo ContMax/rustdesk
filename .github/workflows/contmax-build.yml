@@ -11,7 +11,7 @@ on:
       release-tag:
         description: "Tag da release (pre-release) a criar/atualizar no fork"
         required: false
-        default: "contmax-1.5.1-r2"
+        default: "contmax-1.5.1-r3"
   push:
     tags:
       - "contmax-*"
@@ -28,7 +28,7 @@ env:
   VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
   VERSION: "1.5.1"
   APP_EXE: "ContmaxAcessoRemoto" # = APP_NAME em hbb_common (sem espacos)
-  ARTIFACT_NAME: "contmax-acesso-remoto-1.5.1-r2-x86_64.exe"
+  ARTIFACT_NAME: "contmax-acesso-remoto-1.5.1-r3-x86_64.exe"
 
 jobs:
   generate-bridge:
@@ -197,6 +197,6 @@ jobs:
             gh release upload "$TAG" ./out/* --clobber
           else
             gh release create "$TAG" ./out/* --prerelease --target "$GITHUB_SHA" \
-              --title "Contmax Acesso Remoto $VERSION r2 (Windows x86_64)" \
+              --title "Contmax Acesso Remoto $VERSION r3 (Windows x86_64)" \
               --notes "Build nao assinado do fork Contmax baseado no RustDesk $VERSION (AGPL-3.0). Codigo-fonte: https://github.com/ContMax/rustdesk"
           fi
