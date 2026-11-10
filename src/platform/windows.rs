@@ -1500,7 +1500,7 @@ fn get_install_info_with_subkey(subkey: String) -> (String, String, String, Stri
     path = path.trim_end_matches('\\').to_owned();
     let start_menu = format!(
         "%ProgramData%\\Microsoft\\Windows\\Start Menu\\Programs\\{}",
-        crate::get_app_name()
+        crate::get_display_name()
     );
     let exe = format!("{}\\{}.exe", path, crate::get_app_name());
     (subkey, path, start_menu, exe)
@@ -1618,11 +1618,11 @@ fn get_after_install(
     reg add HKEY_CLASSES_ROOT\\{ext}\\shell\\open /f
     reg add HKEY_CLASSES_ROOT\\{ext}\\shell\\open\\command /f
     reg add HKEY_CLASSES_ROOT\\{ext}\\shell\\open\\command /f /ve /t REG_SZ /d \"\\\"{nested_exe}\\\" \\\"%%1\\\"\"
-    netsh advfirewall firewall add rule name=\"{app_name} Service\" dir=out action=allow program=\"{exe}\" enable=yes
-    netsh advfirewall firewall add rule name=\"{app_name} Service\" dir=in action=allow program=\"{exe}\" enable=yes
+    netsh advfirewall firewall add rule name=\"{disp} Service\" dir=out action=allow program=\"{exe}\" enable=yes
+    netsh advfirewall firewall add rule name=\"{disp} Service\" dir=in action=allow program=\"{exe}\" enable=yes
     {create_service}
     reg add HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System /f /v SoftwareSASGeneration /t REG_DWORD /d 1
-    ", create_service=get_create_service(&exe))
+    ", create_service=get_create_service(&exe), disp=crate::get_display_name())
 }
 
 pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> ResultType<()> {
@@ -1653,7 +1653,8 @@ pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> Res
     if versions.len() > 2 {
         version_build = versions[2];
     }
-    let app_name = crate::get_app_name();
+    // contmax: nome visivel (atalhos, Programas e Recursos); identificadores internos usam app_name.
+    let disp = crate::get_display_name();
 
     let current_exe = std::env::current_exe()?;
     let cur_exe = current_exe
@@ -1678,14 +1679,14 @@ pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> Res
     let tmp_path = "%RUSTDESK_OUTPUT_DIR%".to_owned();
     let (mk_shortcut_commands, mk_shortcut_file) = staged_shortcut_commands(
         shortcut_bytes(&exe, None, shortcut_icon_location.as_deref())?,
-        &format!("{app_name}.lnk"),
+        &format!("{disp}.lnk"),
     )?;
     let (uninstall_shortcut_commands, uninstall_shortcut_file) = staged_shortcut_commands(
         shortcut_bytes(&exe, Some("--uninstall"), Some("msiexec.exe"))?,
-        &format!("Uninstall {app_name}.lnk"),
+        &format!("Uninstall {disp}.lnk"),
     )?;
     let (tray_shortcut_commands, tray_shortcut_file) =
-        staged_tray_shortcut_commands(&app_name, &exe, shortcut_icon_location.as_deref())?;
+        staged_tray_shortcut_commands(&disp, &exe, shortcut_icon_location.as_deref())?;
     let mut reg_value_desktop_shortcuts = "0".to_owned();
     let mut reg_value_start_menu_shortcuts = "0".to_owned();
     let mut reg_value_printer = "0".to_owned();
@@ -1693,8 +1694,7 @@ pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> Res
     if options.contains("desktopicon") {
         shortcuts = format!(
             "copy /Y \"{}\\{}.lnk\" \"%PUBLIC%\\Desktop\\\"",
-            tmp_path,
-            crate::get_app_name()
+            tmp_path, disp
         );
         reg_value_desktop_shortcuts = "1".to_owned();
     }
@@ -1702,8 +1702,8 @@ pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> Res
         shortcuts = format!(
             "{shortcuts}
 md \"{start_menu}\"
-copy /Y \"{tmp_path}\\{app_name}.lnk\" \"{start_menu}\\\"
-copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{start_menu}\\\"
+copy /Y \"{tmp_path}\\{disp}.lnk\" \"{start_menu}\\\"
+copy /Y \"{tmp_path}\\Uninstall {disp}.lnk\" \"{start_menu}\\\"
      "
         );
         reg_value_start_menu_shortcuts = "1".to_owned();
@@ -1726,9 +1726,9 @@ copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{start_menu}\\\"
     // Note: without if exist, the bat may exit in advance on some Windows7 https://github.com/rustdesk/rustdesk/issues/895
     let dels = format!(
         "
-if exist \"{tmp_path}\\{app_name}.lnk\" del /f /q \"{tmp_path}\\{app_name}.lnk\"
-if exist \"{tmp_path}\\Uninstall {app_name}.lnk\" del /f /q \"{tmp_path}\\Uninstall {app_name}.lnk\"
-if exist \"{tmp_path}\\{app_name} Tray.lnk\" del /f /q \"{tmp_path}\\{app_name} Tray.lnk\"
+if exist \"{tmp_path}\\{disp}.lnk\" del /f /q \"{tmp_path}\\{disp}.lnk\"
+if exist \"{tmp_path}\\Uninstall {disp}.lnk\" del /f /q \"{tmp_path}\\Uninstall {disp}.lnk\"
+if exist \"{tmp_path}\\{disp} Tray.lnk\" del /f /q \"{tmp_path}\\{disp} Tray.lnk\"
         "
     );
     let src_exe = cur_exe.clone();
@@ -1745,7 +1745,7 @@ if exist \"{tmp_path}\\{app_name} Tray.lnk\" del /f /q \"{tmp_path}\\{app_name} 
     } else {
         format!("
 {tray_shortcut_commands}
-copy /Y \"{tmp_path}\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\\"
+copy /Y \"{tmp_path}\\{disp} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\\"
 ")
     };
 
@@ -1781,12 +1781,12 @@ md \"{path}\"
 {copy_exe}
 reg add {subkey} /f
 reg add {subkey} /f /v DisplayIcon /t REG_SZ /d \"{display_icon}\"
-reg add {subkey} /f /v DisplayName /t REG_SZ /d \"{app_name}\"
+reg add {subkey} /f /v DisplayName /t REG_SZ /d \"{disp}\"
 reg add {subkey} /f /v DisplayVersion /t REG_SZ /d \"{version}\"
 reg add {subkey} /f /v Version /t REG_SZ /d \"{version}\"
 reg add {subkey} /f /v BuildDate /t REG_SZ /d \"{build_date}\"
 reg add {subkey} /f /v InstallLocation /t REG_SZ /d \"{path}\"
-reg add {subkey} /f /v Publisher /t REG_SZ /d \"{app_name}\"
+reg add {subkey} /f /v Publisher /t REG_SZ /d \"{disp}\"
 reg add {subkey} /f /v VersionMajor /t REG_DWORD /d {version_major}
 reg add {subkey} /f /v VersionMinor /t REG_DWORD /d {version_minor}
 reg add {subkey} /f /v VersionBuild /t REG_DWORD /d {version_build}
@@ -1797,7 +1797,7 @@ reg add {subkey} /f /v WindowsInstaller /t REG_DWORD /d 0
 {uninstall_shortcut_commands}
 {tray_shortcuts}
 {shortcuts}
-copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{path}\\\"
+copy /Y \"{tmp_path}\\Uninstall {disp}.lnk\" \"{path}\\\"
 {dels}
 {import_config}
 {after_install}
@@ -1856,7 +1856,9 @@ fn get_before_uninstall(kill_self: bool) -> ResultType<String> {
     reg delete HKEY_CLASSES_ROOT\\.{ext} /f
     reg delete HKEY_CLASSES_ROOT\\{ext} /f
     netsh advfirewall firewall delete rule name=\"{app_name} Service\"
+    netsh advfirewall firewall delete rule name=\"{disp} Service\"
     ",
+        disp = crate::get_display_name(),
         broker_exe = WIN_TOPMOST_INJECTED_PROCESS_EXE,
     ))
 }
@@ -1873,6 +1875,50 @@ fn get_before_uninstall(kill_self: bool) -> ResultType<String> {
 /// The `uninstall_printer` parameter determines whether the command to uninstall the remote printer
 /// is included in the generated uninstall script. If `uninstall_printer` is `false`, the printer
 /// related command is omitted from the script.
+/// contmax: gera `del` para o nome interno (APP_NAME) e para o nome de exibicao,
+/// pois instalacoes antigas criaram atalhos com o nome interno.
+fn contmax_del_both_names(path_of: impl Fn(&str) -> String) -> String {
+    let mut names = vec![crate::get_app_name(), crate::get_display_name()];
+    names.dedup();
+    names
+        .iter()
+        .map(|n| {
+            let p = path_of(n);
+            format!("if exist \"{p}\" del /f /q \"{p}\"")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn contmax_del_tray_lnk() -> String {
+    contmax_del_both_names(|n| {
+        format!("%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{n} Tray.lnk")
+    })
+}
+
+/// contmax: na atualizacao, renomeia atalhos/pasta criados por versoes que usavam o
+/// nome interno e atualiza o DisplayName em Programas e Recursos.
+fn contmax_migrate_visible_names(subkey: &str, path: &str) -> String {
+    let app = crate::get_app_name();
+    let disp = crate::get_display_name();
+    if app == disp {
+        return "".to_owned();
+    }
+    let sm = "%ProgramData%\\Microsoft\\Windows\\Start Menu\\Programs";
+    format!(
+        "
+reg add {subkey} /f /v DisplayName /t REG_SZ /d \"{disp}\"
+reg add {subkey} /f /v Publisher /t REG_SZ /d \"{disp}\"
+if exist \"%PUBLIC%\\Desktop\\{app}.lnk\" ren \"%PUBLIC%\\Desktop\\{app}.lnk\" \"{disp}.lnk\"
+if exist \"{sm}\\Startup\\{app} Tray.lnk\" ren \"{sm}\\Startup\\{app} Tray.lnk\" \"{disp} Tray.lnk\"
+if exist \"{path}\\Uninstall {app}.lnk\" ren \"{path}\\Uninstall {app}.lnk\" \"Uninstall {disp}.lnk\"
+if exist \"{sm}\\{app}\" if not exist \"{sm}\\{disp}\" ren \"{sm}\\{app}\" \"{disp}\"
+if exist \"{sm}\\{disp}\\{app}.lnk\" ren \"{sm}\\{disp}\\{app}.lnk\" \"{disp}.lnk\"
+if exist \"{sm}\\{disp}\\Uninstall {app}.lnk\" ren \"{sm}\\{disp}\\Uninstall {app}.lnk\" \"Uninstall {disp}.lnk\"
+"
+    )
+}
+
 fn get_uninstall(kill_self: bool, uninstall_printer: bool) -> ResultType<String> {
     let (subkey, path, start_menu, _) = get_install_info();
     let installer_state = get_windows_installer_state(&subkey)?;
@@ -1902,12 +1948,15 @@ fn get_uninstall(kill_self: bool, uninstall_printer: bool) -> ResultType<String>
     {uninstall_amyuni_idd}
     if exist \"{path}\" rd /s /q \"{path}\"
     if exist \"{start_menu}\" rd /s /q \"{start_menu}\"
-    if exist \"%PUBLIC%\\Desktop\\{app_name}.lnk\" del /f /q \"%PUBLIC%\\Desktop\\{app_name}.lnk\"
-    if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\"
+    if exist \"%ProgramData%\\Microsoft\\Windows\\Start Menu\\Programs\\{app_name}\" rd /s /q \"%ProgramData%\\Microsoft\\Windows\\Start Menu\\Programs\\{app_name}\"
+    {del_lnk}
+    {del_tray}
     ",
         before_uninstall=get_before_uninstall(kill_self)?,
         uninstall_amyuni_idd=get_uninstall_amyuni_idd(),
         app_name = crate::get_app_name(),
+        del_lnk = contmax_del_both_names(|n| format!("%PUBLIC%\\Desktop\\{n}.lnk")),
+        del_tray = contmax_del_tray_lnk(),
     ))
 }
 
@@ -3373,10 +3422,11 @@ pub fn uninstall_service(show_new_window: bool, _: bool) -> bool {
         "
     chcp 65001
     {remove_service}
-    if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\"
+    {del_tray}
     taskkill /F /IM {broker_exe}
     taskkill /F /IM {app_name}.exe{filter}
     ",
+        del_tray = contmax_del_tray_lnk(),
         app_name = crate::get_app_name(),
         broker_exe = WIN_TOPMOST_INJECTED_PROCESS_EXE,
     );
@@ -3391,6 +3441,8 @@ pub fn uninstall_service(show_new_window: bool, _: bool) -> bool {
 
 fn get_install_service_commands(path: &str, exe: &str) -> ResultType<InstallCommands> {
     let app_name = crate::get_app_name();
+    let disp = crate::get_display_name();
+    let del_tray = contmax_del_tray_lnk();
     for value in [path, exe] {
         validate_install_value(value)?;
     }
@@ -3405,14 +3457,15 @@ fn get_install_service_commands(path: &str, exe: &str) -> ResultType<InstallComm
         validate_install_value(icon)?;
     }
     let (tray_shortcut_commands, tray_shortcut_file) =
-        staged_tray_shortcut_commands(&app_name, exe, shortcut_icon_location.as_deref())?;
+        staged_tray_shortcut_commands(&disp, exe, shortcut_icon_location.as_deref())?;
     let filter = format!(" /FI \"PID ne {}\"", get_current_pid());
     let script = format!(
         "
 chcp 65001
 taskkill /F /IM {app_name}.exe{filter}
+{del_tray}
 {tray_shortcut_commands}
-copy /Y \"%RUSTDESK_OUTPUT_DIR%\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\\"
+copy /Y \"%RUSTDESK_OUTPUT_DIR%\\{disp} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\\"
 {import_config}
 {create_service}
     ",
@@ -3639,6 +3692,7 @@ chcp 65001
 sc stop {app_name}
 taskkill /F /IM {app_name}.exe{filter}
 {reg_cmd}
+{migrate_names}
 {copy_exe}
 {rename_exe}
 {remove_meta_toml}
@@ -3648,6 +3702,11 @@ taskkill /F /IM {app_name}.exe{filter}
 {sleep}
     ",
         app_name = app_name,
+        migrate_names = if is_msi.unwrap_or(false) {
+            "".to_owned()
+        } else {
+            contmax_migrate_visible_names(&subkey, &path)
+        },
         copy_exe = copy_exe_cmd(&src_exe, &exe, &path)?,
         rename_exe = rename_exe_cmd(&src_exe, &path)?,
         remove_meta_toml = remove_meta_toml_cmd(is_msi.unwrap_or(true), &path),
@@ -4062,12 +4121,13 @@ fn get_import_config(exe: &str) -> String {
     format!("
 sc stop {app_name}
 sc delete {app_name}
-sc create {app_name} binpath= \"\\\"{exe}\\\" --import-config \\\"{config_path}\\\"\" start= auto DisplayName= \"{app_name} Service\"
+sc create {app_name} binpath= \"\\\"{exe}\\\" --import-config \\\"{config_path}\\\"\" start= auto DisplayName= \"{disp} Service\"
 sc start {app_name}
 sc stop {app_name}
 sc delete {app_name}
 ",
     app_name = crate::get_app_name(),
+    disp = crate::get_display_name(),
 )
 }
 
@@ -4078,15 +4138,16 @@ fn get_create_service(exe: &str) -> String {
     let stop = Config::get_option("stop-service") == "Y";
     if stop {
         format!("
-if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\"
-", app_name = crate::get_app_name())
+{del_tray}
+", del_tray = contmax_del_tray_lnk())
     } else {
         let exe = escape_nested_cmd_ampersands(exe);
         format!("
-sc create {app_name} binpath= \"\\\"{exe}\\\" --service\" start= auto DisplayName= \"{app_name} Service\"
+sc create {app_name} binpath= \"\\\"{exe}\\\" --service\" start= auto DisplayName= \"{disp} Service\"
 sc start {app_name}
 ",
-    app_name = crate::get_app_name())
+    app_name = crate::get_app_name(),
+    disp = crate::get_display_name())
     }
 }
 
