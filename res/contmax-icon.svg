@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Contmax Acesso Remoto</title>
+  <defs>
+    <linearGradient id="bg" x1="0.1" y1="0.05" x2="0.9" y2="0.95">
+      <stop offset="0" stop-color="#E9560C"/>
+      <stop offset="1" stop-color="#C2410C"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="232" ry="232" fill="url(#bg)"/>
+  <path d="M258 764V272L512 574L766 272V764" fill="none" stroke="#FFFFFF" stroke-width="124" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
