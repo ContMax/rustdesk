@@ -1213,6 +1213,18 @@ pub fn get_app_name() -> String {
     hbb_common::config::APP_NAME.read().unwrap().clone()
 }
 
+/// Nome de exibicao da marca (APP_NAME nao pode ter espacos: ver
+/// `validate_install_app_name` em `src/platform/mod.rs`).
+pub const CONTMAX_DISPLAY_NAME: &str = "Contmax Acesso Remoto";
+
+/// Link do codigo-fonte do fork (AGPL-3.0).
+pub const CONTMAX_SOURCE_URL: &str = "https://github.com/ContMax/rustdesk";
+
+#[inline]
+pub fn get_display_name() -> String {
+    CONTMAX_DISPLAY_NAME.to_owned()
+}
+
 #[inline]
 pub fn is_rustdesk() -> bool {
     hbb_common::config::APP_NAME.read().unwrap().eq("RustDesk")
@@ -1294,7 +1306,8 @@ fn get_api_server_(api: String, custom: String) -> String {
             return format!("http://{}", s);
         }
     }
-    "https://admin.rustdesk.com".to_owned()
+    // contmax: sem servidor customizado, usa a API propria (nao a publica da RustDesk)
+    "https://remoto.contmaxcontabilidade.com.br".to_owned()
 }
 
 #[inline]
@@ -1345,6 +1358,10 @@ pub fn get_local_option(key: &str) -> String {
         || key == keys::OPTION_ENABLE_WEBRTC
     {
         if v.is_empty() {
+            // contmax: UDP punch ligado por padrao no servidor proprio
+            if key == keys::OPTION_ENABLE_UDP_PUNCH {
+                return "Y".to_owned();
+            }
             if !is_public(&Config::get_rendezvous_server()) {
                 return "N".to_owned();
             }
